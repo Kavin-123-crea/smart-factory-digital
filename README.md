@@ -20,26 +20,13 @@ python -m pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
-## Deploy to Streamlit Community Cloud
+## Deployment
 
-1. Sign in to GitHub and create an empty **public** repository.
-2. From this project directory, push the source and required assets:
-
-   ```powershell
-   git init -b main
-   git add .
-   git commit -m "Initial project upload"
-   git remote add origin https://github.com/<YOUR_USERNAME>/<REPOSITORY>.git
-   git push -u origin main
-   ```
-
-   Include `app.py`, `requirements.txt`, `README.md`, and the `images`
-   directory (the OBJ/MTL files power the 3D view). The `.gitignore` keeps
-   local databases, model binaries, presentation exports, and virtual
-   environments out of the public repository.
-3. In [Streamlit Community Cloud](https://share.streamlit.io/), connect the
-   GitHub repository and deploy `app.py` from the `main` branch.
-4. The app URL is assigned by Streamlit Community Cloud after deployment.
+This repository is deployed on
+[Streamlit Community Cloud](https://share.streamlit.io/) from the `main` branch,
+using `app.py` as the entry point. To redeploy or manage it, open Streamlit
+Community Cloud and select the `Kavin-123-crea/smart-factory-digital`
+repository.
 
 The `.gitignore` excludes local virtual environments, the SQLite database,
 generated model files, presentation exports, and STEP CAD files. The hosted app
