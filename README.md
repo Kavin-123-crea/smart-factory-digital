@@ -8,8 +8,10 @@ indicators, and an interactive 3D assembly model.
 
 The public demo creates a local SQLite database with synthetic sample history
 when it starts and appends simulated readings as the dashboard refreshes. It is
-not connected to real factory equipment. The sample database is regenerated
-after a fresh deployment or restart; it is not a persistent data store.
+not connected to real factory equipment. The maintenance button starts a
+30-second simulated maintenance interval shared by visitors; it preserves
+production history and restores simulated machine health. The sample database
+is regenerated after a fresh deployment or restart; it is not persistent.
 
 ## Run locally
 

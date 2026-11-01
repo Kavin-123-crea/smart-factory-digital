@@ -73,6 +73,12 @@ def initialize_database():
             conn.execute(
                 "ALTER TABLE production ADD COLUMN Machine_Health REAL DEFAULT 100"
             )
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS demo_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
 
         if conn.execute("SELECT COUNT(*) FROM production").fetchone()[0] == 0:
             rng = random.Random(42)
@@ -149,11 +155,27 @@ def append_demo_reading():
         """).fetchone()
         production_count = int(latest[0] or 0)
         machine_health = float(latest[1] if latest[1] is not None else 100.0)
-
-        machine_status = random.choices(
-            ["Running", "Idle", "Maintenance", "Fault"],
-            weights=[90, 5, 3, 2],
-        )[0]
+        maintenance_row = conn.execute(
+            "SELECT value FROM demo_state WHERE key = 'maintenance_until'"
+        ).fetchone()
+        maintenance_until = (
+            datetime.strptime(maintenance_row[0], "%Y-%m-%d %H:%M:%S")
+            if maintenance_row
+            else None
+        )
+        maintenance_active = (
+            maintenance_until is not None and datetime.now() < maintenance_until
+        )
+        machine_status = (
+            "Maintenance"
+            if maintenance_active
+            else random.choices(
+                ["Running", "Idle", "Maintenance", "Fault"],
+                weights=[90, 5, 3, 2],
+            )[0]
+        )
+        if maintenance_active:
+            machine_health = 100.0
         if machine_status == "Running":
             production_count += 1
             machine_health -= 0.02
@@ -195,7 +217,9 @@ def append_demo_reading():
 
         machine_health = max(0.0, min(100.0, machine_health))
         temperature = round(28 + power * 3 + random.uniform(-1, 1), 1)
-        if machine_status == "Fault":
+        if maintenance_active:
+            inspection = "Pass"
+        elif machine_status == "Fault":
             inspection = random.choices(["OK", "Defect"], weights=[30, 70])[0]
         elif machine_status == "Maintenance":
             inspection = "Defect"
@@ -225,6 +249,38 @@ def append_demo_reading():
             power,
             round(machine_health, 2),
         ))
+        conn.execute("""
+            DELETE FROM production
+            WHERE rowid NOT IN (
+                SELECT rowid FROM production ORDER BY rowid DESC LIMIT 2000
+            )
+        """)
+
+def perform_maintenance():
+    now = datetime.now()
+    maintenance_until = now + timedelta(seconds=30)
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        latest = conn.execute("""
+            SELECT Production_Count
+            FROM production
+            ORDER BY rowid DESC
+            LIMIT 1
+        """).fetchone()
+        production_count = int(latest[0] or 0)
+        conn.execute("""
+            INSERT INTO demo_state (key, value)
+            VALUES ('maintenance_until', ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """, (maintenance_until.strftime("%Y-%m-%d %H:%M:%S"),))
+        conn.execute("""
+            INSERT INTO production
+            (Time, Production_Count, Machine_Status, Robot_Status, Inspection,
+             Packing_Status, Temperature, Conveyor_Speed, Cycle_Time, Power_kW,
+             Machine_Health)
+            VALUES (?, ?, 'Maintenance', 'Offline', 'Pass', 'Stopped',
+                    30, 0, 0, 0.5, 100)
+        """, (now.strftime("%Y-%m-%d %H:%M:%S"), production_count))
         conn.execute("""
             DELETE FROM production
             WHERE rowid NOT IN (
@@ -328,11 +384,42 @@ total=len(df); availability=df["Machine_Status"].eq("Running").mean()*100 if tot
 performance=random.uniform(88,94) if health>=60 else random.uniform(70,82)
 quality=df["Inspection"].ne("Defect").mean()*100 if total else 0
 oee=availability*performance*quality/10000; risk=max(0.0,100-health)
+factory_state = (
+    "🛠  Maintenance in Progress"
+    if latest["Machine_Status"] == "Maintenance"
+    else "🏭  Factory Online"
+)
+factory_label = (
+    "🟡 Maintenance in progress"
+    if latest["Machine_Status"] == "Maintenance"
+    else "🟢 Factory Online"
+)
+robot_state = (
+    f"🤖  Robot {latest['Robot_Status']}"
+)
+risk_message, risk_background, risk_border = (
+    ("🟢 Low estimated risk. Continue routine monitoring.", "#d9f1e6", "#79bb9a")
+    if risk < 25
+    else ("🟡 Moderate estimated risk. Review the latest machine signals.", "#fff1cf", "#d3ad52")
+    if risk < 60
+    else ("🔴 Elevated estimated risk. Schedule a maintenance review.", "#fbe3e3", "#d47a7a")
+)
 
-st.markdown(f'<div class="hero"><h1>🏭 SMART FACTORY DIGITAL TWIN</h1><p>Industry 4.0 Manufacturing Monitoring System</p><small>🟢 Factory Online &nbsp;&nbsp; 🕒 {datetime.now().strftime("%d-%m-%Y %H:%M:%S")}</small></div>',unsafe_allow_html=True)
-st.caption("Live simulated demo · readings update automatically · not connected to real equipment")
+st.markdown(f'<div class="hero"><h1>🏭 SMART FACTORY DIGITAL TWIN</h1><p>Industry 4.0 Manufacturing Monitoring System</p><small>{factory_label} &nbsp;&nbsp; 🕒 {datetime.now().strftime("%d-%m-%Y %H:%M:%S")}</small></div>',unsafe_allow_html=True)
+caption_col, maintenance_col = st.columns([8, 2], vertical_alignment="center")
+with caption_col:
+    st.caption("Live simulated demo · readings update automatically · not connected to real equipment")
+with maintenance_col:
+    if st.button(
+        "🛠 Perform Maintenance",
+        type="primary",
+        width="stretch",
+        help="Starts a 30-second simulated maintenance interval visible to all visitors. No real equipment is controlled.",
+    ):
+        perform_maintenance()
+        st.rerun()
 
-for col,text,cls in zip(st.columns(5),["🟢  Connected","🤖  Robot Ready","🏭  Factory Online","⚡  Power Stable","🟢  Database OK"],["","blue","","warn",""]):
+for col,text,cls in zip(st.columns(5),["🟢  Connected",robot_state,factory_state,"⚡  Power Stable","🟢  Database OK"],["","blue","warn" if latest["Machine_Status"] == "Maintenance" else "","",""]):
     col.markdown(f'<div class="pill {cls}" style="text-align:left;padding-left:.8rem">{text}</div>',unsafe_allow_html=True)
 st.write("")
 
@@ -345,7 +432,7 @@ with overview_tab:
     with top_left:
         st.markdown(f'''<div class="panel"><div class="panel-title">🧠 &nbsp; AI Predictive Maintenance</div>
         <div style="display:flex;gap:.6rem;align-items:center"><div class="mini-kpi" style="flex:1"><div class="mini-label">Estimated Failure Risk</div><div class="mini-value">{risk:.1f}%</div></div>
-        <div style="flex:1;border:1px solid #79bb9a;background:#d9f1e6;color:#174b39;border-radius:9px;padding:.65rem;font-size:.82rem">🟢 Low estimated risk according to this model. Continue routine monitoring.</div></div>
+        <div style="flex:1;border:1px solid {risk_border};background:{risk_background};color:#174b39;border-radius:9px;padding:.65rem;font-size:.82rem">{risk_message}</div></div>
         <div class="riskbar"><div class="riskfill" style="width:{max(4,100-risk)}%"></div></div><small>Prototype prediction based on synthetic training data. This estimate is not validated for real industrial equipment.</small></div>''',unsafe_allow_html=True)
         for col,args in zip(st.columns(4),[("📦","Products Produced",f"{production:,}"),("🩺","Machine Health",f"{health:.1f}%"),("⚡","Power",f"{power:.1f} kW"),("🌡️","Temperature",f"{temp:.1f} °C")]):
             col.markdown(f'<div class="mini-kpi"><div class="mini-label">{args[0]} {args[1]}</div><div class="mini-value">{args[2]}</div></div>',unsafe_allow_html=True)
