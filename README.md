@@ -4,6 +4,8 @@ A Streamlit dashboard prototype for a manufacturing assembly line. It includes
 production analytics, equipment status, synthetic predictive-maintenance
 indicators, and an interactive 3D assembly model.
 
+[Live demo](https://smart-factory-digital-twin.streamlit.app/)
+
 The public demo creates a local SQLite database with synthetic sample history
 when it starts. It is read-only from the dashboard and is not connected to real
 factory equipment. The sample database is regenerated after a fresh deployment
