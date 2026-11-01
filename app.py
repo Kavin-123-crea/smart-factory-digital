@@ -163,6 +163,15 @@ def append_demo_reading():
             if maintenance_row
             else None
         )
+        reset_row = conn.execute(
+            "SELECT value FROM demo_state WHERE key = 'reset_at'"
+        ).fetchone()
+        if reset_row:
+            reset_at = datetime.strptime(reset_row[0], "%Y-%m-%d %H:%M:%S")
+            if datetime.now() - reset_at < timedelta(seconds=3):
+                return
+            conn.execute("DELETE FROM demo_state WHERE key = 'reset_at'")
+
         maintenance_active = (
             maintenance_until is not None and datetime.now() < maintenance_until
         )
@@ -288,6 +297,26 @@ def perform_maintenance():
             )
         """)
 
+def reset_factory_data():
+    now = datetime.now()
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("DELETE FROM production")
+        conn.execute("DELETE FROM demo_state WHERE key = 'maintenance_until'")
+        conn.execute("""
+            INSERT INTO demo_state (key, value)
+            VALUES ('reset_at', ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """, (now.strftime("%Y-%m-%d %H:%M:%S"),))
+        conn.execute("""
+            INSERT INTO production
+            (Time, Production_Count, Machine_Status, Robot_Status, Inspection,
+             Packing_Status, Temperature, Conveyor_Speed, Cycle_Time, Power_kW,
+             Machine_Health)
+            VALUES (?, 0, 'Running', 'Active', 'Pass', 'Running',
+                    30, 1.2, 2.0, 5.0, 100)
+        """, (now.strftime("%Y-%m-%d %H:%M:%S"),))
+
 def load_data():
    with sqlite3.connect(DB_PATH) as conn:
        return pd.read_sql_query("SELECT * FROM production ORDER BY rowid", conn)
@@ -406,7 +435,9 @@ risk_message, risk_background, risk_border = (
 )
 
 st.markdown(f'<div class="hero"><h1>🏭 SMART FACTORY DIGITAL TWIN</h1><p>Industry 4.0 Manufacturing Monitoring System</p><small>{factory_label} &nbsp;&nbsp; 🕒 {datetime.now().strftime("%d-%m-%Y %H:%M:%S")}</small></div>',unsafe_allow_html=True)
-caption_col, maintenance_col = st.columns([8, 2], vertical_alignment="center")
+caption_col, maintenance_col, reset_col = st.columns(
+    [6, 2, 2], vertical_alignment="center"
+)
 with caption_col:
     st.caption("Live simulated demo · readings update automatically · not connected to real equipment")
 with maintenance_col:
@@ -417,6 +448,14 @@ with maintenance_col:
         help="Starts a 30-second simulated maintenance interval visible to all visitors. No real equipment is controlled.",
     ):
         perform_maintenance()
+        st.rerun()
+with reset_col:
+    if st.button(
+        "↺ Reset Factory Data",
+        width="stretch",
+        help="Resets production to zero and clears shared charts and logs for all visitors.",
+    ):
+        reset_factory_data()
         st.rerun()
 
 for col,text,cls in zip(st.columns(5),["🟢  Connected",robot_state,factory_state,"⚡  Power Stable","🟢  Database OK"],["","blue","warn" if latest["Machine_Status"] == "Maintenance" else "","",""]):

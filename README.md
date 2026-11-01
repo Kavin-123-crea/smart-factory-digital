@@ -10,8 +10,10 @@ The public demo creates a local SQLite database with synthetic sample history
 when it starts and appends simulated readings as the dashboard refreshes. It is
 not connected to real factory equipment. The maintenance button starts a
 30-second simulated maintenance interval shared by visitors; it preserves
-production history and restores simulated machine health. The sample database
-is regenerated after a fresh deployment or restart; it is not persistent.
+production history and restores simulated machine health. The separate Reset
+Factory Data button resets production to zero, clears shared charts and logs,
+and returns the simulated readings to a fresh baseline. The sample database is
+regenerated after a fresh deployment or restart; it is not persistent.
 
 ## Run locally
 
