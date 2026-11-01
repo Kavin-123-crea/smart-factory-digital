@@ -15,6 +15,18 @@ Factory Data button resets production to zero, clears shared charts and logs,
 and returns the simulated readings to a fresh baseline. The sample database is
 regenerated after a fresh deployment or restart; it is not persistent.
 
+## Dashboard controls
+
+- **Perform Maintenance** starts the shared, 30-second maintenance simulation.
+  It restores simulated machine health to 100% without clearing production
+  history or resetting the product count.
+- **Reset Factory Data** clears the shared production history, resets the
+  product count to zero, and refreshes the charts, logs, and OEE from a fresh
+  baseline. New simulated readings resume automatically.
+
+Both controls affect the public demo for all visitors. They operate only on
+synthetic demo data; they do not control real factory equipment.
+
 ## Run locally
 
 ```powershell
@@ -30,7 +42,7 @@ This repository is deployed on
 [Streamlit Community Cloud](https://share.streamlit.io/) from the `main` branch,
 using `app.py` as the entry point. To redeploy or manage it, open Streamlit
 Community Cloud and select the `Kavin-123-crea/smart-factory-digital`
-repository.
+repository. Pushing a commit to `main` triggers a redeploy.
 
 The `.gitignore` excludes local virtual environments, the SQLite database,
 generated model files, presentation exports, and STEP CAD files. The hosted app
