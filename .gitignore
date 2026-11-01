@@ -1,0 +1,21 @@
+.venv/
+.venv-*/
+.vscode/
+__pycache__/
+*.py[cod]
+
+# Local data and generated model artifacts
+factory.db
+data/
+results/
+*.pkl
+*.log
+
+# Unneeded large exports
+*.pptx
+*.step
+inspect_deck.py
+make_final_review.py
+update_final_review.py
+verify_deck.py
+verify_updated.py
