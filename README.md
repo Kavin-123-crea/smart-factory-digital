@@ -7,9 +7,9 @@ indicators, and an interactive 3D assembly model.
 [Live demo](https://smart-factory-digital-twin.streamlit.app/)
 
 The public demo creates a local SQLite database with synthetic sample history
-when it starts. It is read-only from the dashboard and is not connected to real
-factory equipment. The sample database is regenerated after a fresh deployment
-or restart; it is not a persistent data store.
+when it starts and appends simulated readings as the dashboard refreshes. It is
+not connected to real factory equipment. The sample database is regenerated
+after a fresh deployment or restart; it is not a persistent data store.
 
 ## Run locally
 
@@ -30,11 +30,11 @@ repository.
 
 The `.gitignore` excludes local virtual environments, the SQLite database,
 generated model files, presentation exports, and STEP CAD files. The hosted app
-uses only synthetic data created at startup.
+uses only synthetic data created at startup and during dashboard refreshes.
 
 ## Limitations
 
-- The dashboard refreshes its display, but this prototype does not connect to
-  live machinery or run the separate `simulator.py` process in the cloud.
+- The displayed readings are simulated, not live machinery data; the hosted
+  app does not run the separate `simulator.py` process.
 - Predictive-maintenance values are illustrative and are not validated for
   industrial use.

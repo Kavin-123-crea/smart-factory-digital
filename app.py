@@ -138,6 +138,100 @@ def initialize_database():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, rows)
 
+def append_demo_reading():
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        latest = conn.execute("""
+            SELECT Production_Count, Machine_Health
+            FROM production
+            ORDER BY rowid DESC
+            LIMIT 1
+        """).fetchone()
+        production_count = int(latest[0] or 0)
+        machine_health = float(latest[1] if latest[1] is not None else 100.0)
+
+        machine_status = random.choices(
+            ["Running", "Idle", "Maintenance", "Fault"],
+            weights=[90, 5, 3, 2],
+        )[0]
+        if machine_status == "Running":
+            production_count += 1
+            machine_health -= 0.02
+            conveyor_speed = round(random.uniform(0.90, 1.20), 2)
+            cycle_time = round(
+                random.uniform(1.8, 2.4)
+                if machine_health > 80
+                else random.uniform(2.6, 3.4)
+                if machine_health > 60
+                else random.uniform(3.6, 4.5)
+                if machine_health > 40
+                else random.uniform(4.8, 6.0),
+                2,
+            )
+            power = round(2 + conveyor_speed * 1.5, 2)
+            robot_status = random.choices(["Active", "Idle"], weights=[95, 5])[0]
+            packing_status = "Running"
+        elif machine_status == "Idle":
+            machine_health -= 0.005
+            conveyor_speed = round(random.uniform(0.10, 0.40), 2)
+            cycle_time = 0.0
+            power = round(random.uniform(0.8, 1.5), 2)
+            robot_status = "Idle"
+            packing_status = "Waiting"
+        elif machine_status == "Maintenance":
+            machine_health += 0.10
+            conveyor_speed = 0.0
+            cycle_time = 0.0
+            power = round(random.uniform(0.2, 0.8), 2)
+            robot_status = "Offline"
+            packing_status = "Stopped"
+        else:
+            machine_health -= 0.20
+            conveyor_speed = 0.0
+            cycle_time = 0.0
+            power = round(random.uniform(0.2, 0.8), 2)
+            robot_status = "Offline"
+            packing_status = "Stopped"
+
+        machine_health = max(0.0, min(100.0, machine_health))
+        temperature = round(28 + power * 3 + random.uniform(-1, 1), 1)
+        if machine_status == "Fault":
+            inspection = random.choices(["OK", "Defect"], weights=[30, 70])[0]
+        elif machine_status == "Maintenance":
+            inspection = "Defect"
+        else:
+            defect_chance = min(3 + (100 - machine_health) * 0.3, 50)
+            inspection = random.choices(
+                ["OK", "Defect"],
+                weights=[100 - defect_chance, defect_chance],
+            )[0]
+
+        conn.execute("""
+            INSERT INTO production
+            (Time, Production_Count, Machine_Status, Robot_Status, Inspection,
+             Packing_Status, Temperature, Conveyor_Speed, Cycle_Time, Power_kW,
+             Machine_Health)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            production_count,
+            machine_status,
+            robot_status,
+            inspection,
+            packing_status,
+            temperature,
+            conveyor_speed,
+            cycle_time,
+            power,
+            round(machine_health, 2),
+        ))
+        conn.execute("""
+            DELETE FROM production
+            WHERE rowid NOT IN (
+                SELECT rowid FROM production ORDER BY rowid DESC LIMIT 2000
+            )
+        """)
+
 def load_data():
    with sqlite3.connect(DB_PATH) as conn:
        return pd.read_sql_query("SELECT * FROM production ORDER BY rowid", conn)
@@ -224,6 +318,7 @@ with st.sidebar:
     st.markdown(f'<b>System Status</b><br><br>🟢 Factory Online<br>🗄️ Database: SQLite<br>◷ Last Update<br>&nbsp;&nbsp;{datetime.now().strftime("%d-%b-%Y %H:%M:%S")}',unsafe_allow_html=True)
 
 initialize_database()
+append_demo_reading()
 df=load_data()
 if df.empty: st.error("No factory data is available."); st.stop()
 latest=df.iloc[-1]; health=float(latest["Machine_Health"])
@@ -235,7 +330,7 @@ quality=df["Inspection"].ne("Defect").mean()*100 if total else 0
 oee=availability*performance*quality/10000; risk=max(0.0,100-health)
 
 st.markdown(f'<div class="hero"><h1>🏭 SMART FACTORY DIGITAL TWIN</h1><p>Industry 4.0 Manufacturing Monitoring System</p><small>🟢 Factory Online &nbsp;&nbsp; 🕒 {datetime.now().strftime("%d-%m-%Y %H:%M:%S")}</small></div>',unsafe_allow_html=True)
-st.caption("Public read-only demo · synthetic sample history · not connected to live equipment")
+st.caption("Live simulated demo · readings update automatically · not connected to real equipment")
 
 for col,text,cls in zip(st.columns(5),["🟢  Connected","🤖  Robot Ready","🏭  Factory Online","⚡  Power Stable","🟢  Database OK"],["","blue","","warn",""]):
     col.markdown(f'<div class="pill {cls}" style="text-align:left;padding-left:.8rem">{text}</div>',unsafe_allow_html=True)
